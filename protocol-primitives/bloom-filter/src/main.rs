@@ -58,3 +58,26 @@ fn main() {
     println!("tx1: {}", filter.contains("tx1"));
     println!("tx3: {}", filter.contains("tx3"));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inserted_element_should_be_found() {
+        let mut filter = BloomFilter::new(100, 3);
+
+        filter.insert("transaction");
+
+        assert!(filter.contains("transaction"));
+    }
+
+    #[test]
+    fn non_inserted_element_should_usually_be_false() {
+        let mut filter = BloomFilter::new(100, 3);
+
+        filter.insert("tx1");
+
+        assert!(!filter.contains("tx2"));
+    }
+}
