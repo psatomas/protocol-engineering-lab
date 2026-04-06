@@ -5,3 +5,10 @@ edition = "2024"
 
 [dependencies]
 sha2 = "0.10"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "merkle_benchmark"
+harness = false
