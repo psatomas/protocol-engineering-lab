@@ -1,13 +1,13 @@
 use sha2::{Digest, Sha256};
 
-struct BloomFilter {
+pub struct BloomFilter {
     bits: Vec<bool>,
     size: usize,
     hash_functions: usize,
 }
 
 impl BloomFilter {
-    fn new(size: usize, hash_functions: usize) -> Self {
+    pub fn new(size: usize, hash_functions: usize) -> Self {
         BloomFilter {
             bits: vec![false; size],
             size,
@@ -29,14 +29,14 @@ impl BloomFilter {
         num % self.size
     }
 
-    fn insert(&mut self, item: &str) {
+    pub fn insert(&mut self, item: &str) {
         for i in 0..self.hash_functions {
             let index = self.hash(item, i);
             self.bits[index] = true;
         }
     }
 
-    fn contains(&self, item: &str) -> bool {
+    pub fn contains(&self, item: &str) -> bool {
         for i in 0..self.hash_functions {
             let index = self.hash(item, i);
 
@@ -47,16 +47,6 @@ impl BloomFilter {
 
         true
     }
-}
-
-fn main() {
-    let mut filter = BloomFilter::new(1000, 3);
-
-    filter.insert("tx1");
-    filter.insert("tx2");
-
-    println!("tx1: {}", filter.contains("tx1"));
-    println!("tx3: {}", filter.contains("tx3"));
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 
 pub struct MerkleTree {
-    leaves: Vec<Vec<u8>>,
+    pub leaves: Vec<Vec<u8>>,
     layers: Vec<Vec<Vec<u8>>>,
 }
 
@@ -80,7 +80,7 @@ impl MerkleTree {
         let mut hash_val = hash(leaf);
 
         for sibling in proof {
-            let mut combined = if index % 2 == 0 {
+            let combined = if index % 2 == 0 {
                 let mut c = hash_val.clone();
                 c.extend(&sibling);
                 c
