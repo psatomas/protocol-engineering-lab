@@ -4,6 +4,6 @@ members = [
     "protocol-primitives/merkle-tree",
     "protocol-primitives/bloom-filter",
     "rust-algorithms/two-sum"
-]
+, "protocol-primitives/sparse-merkle-tree"]
 
 resolver = "2"
