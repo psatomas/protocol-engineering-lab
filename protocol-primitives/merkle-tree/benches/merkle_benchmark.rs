@@ -42,9 +42,9 @@ fn verify_proof(c: &mut Criterion) {
     c.bench_function("verify_merkle_proof", |b| {
         b.iter(|| {
             MerkleTree::verify(
-                black_box(data[500]),
-                black_box(proof.clone()),
-                black_box(root.clone()),
+                black_box(&data[500]),
+                black_box(&proof.clone()),
+                black_box(&root.clone()),
                 black_box(500),
             );
         })

@@ -5,8 +5,22 @@ pub trait Hashable {
     fn hash(&self) -> Vec<u8>;
 }
 
-/// Utility function for SHA256 hashing
-fn hash(data: &[u8]) -> Vec<u8> {
+/// Implement Hashable for byte slices
+impl Hashable for &[u8] {
+    fn hash(&self) -> Vec<u8> {
+        sha256(self)
+    }
+}
+
+/// Implement Hashable for Vec<u8>
+impl Hashable for Vec<u8> {
+    fn hash(&self) -> Vec<u8> {
+        sha256(self)
+    }
+}
+
+/// Utility SHA256 function
+fn sha256(data: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(data);
     hasher.finalize().to_vec()
@@ -15,13 +29,12 @@ fn hash(data: &[u8]) -> Vec<u8> {
 /// Generic MerkleTree struct
 pub struct MerkleTree<T: Hashable> {
     pub leaves: Vec<T>,
-    layers: Vec<Vec<Vec<u8>>>, // internal hashed layers
+    layers: Vec<Vec<Vec<u8>>>,
 }
 
 impl<T: Hashable> MerkleTree<T> {
-    /// Create a new MerkleTree from a vector of leaves
+    /// Create a new MerkleTree
     pub fn new(leaves: Vec<T>) -> Self {
-        // Hash leaves
         let hashed_leaves: Vec<Vec<u8>> = leaves.iter().map(|l| l.hash()).collect();
 
         let mut layers = Vec::new();
@@ -36,7 +49,7 @@ impl<T: Hashable> MerkleTree<T> {
                 if pair.len() == 2 {
                     let mut combined = pair[0].clone();
                     combined.extend(&pair[1]);
-                    next_layer.push(hash(&combined));
+                    next_layer.push(sha256(&combined));
                 } else {
                     next_layer.push(pair[0].clone());
                 }
@@ -49,12 +62,12 @@ impl<T: Hashable> MerkleTree<T> {
         MerkleTree { leaves, layers }
     }
 
-    /// Return the root of the MerkleTree
+    /// Return Merkle root
     pub fn root(&self) -> Vec<u8> {
         self.layers.last().unwrap()[0].clone()
     }
 
-    /// Generate a Merkle proof for a given leaf index
+    /// Generate proof for a leaf index
     pub fn proof(&self, mut index: usize) -> Vec<Vec<u8>> {
         let mut proof = Vec::new();
 
@@ -75,7 +88,7 @@ impl<T: Hashable> MerkleTree<T> {
         proof
     }
 
-    /// Verify a Merkle proof for a leaf against a root
+    /// Verify proof
     pub fn verify(leaf: &T, proof: &[Vec<u8>], root: &[u8], mut index: usize) -> bool {
         let mut hash_val = leaf.hash();
 
@@ -90,7 +103,7 @@ impl<T: Hashable> MerkleTree<T> {
                 c
             };
 
-            hash_val = hash(&combined);
+            hash_val = sha256(&combined);
             index /= 2;
         }
 
@@ -102,15 +115,6 @@ impl<T: Hashable> MerkleTree<T> {
 mod tests {
     use super::*;
 
-    // Implement Hashable for Vec<u8> for testing
-    impl Hashable for Vec<u8> {
-        fn hash(&self) -> Vec<u8> {
-            let mut hasher = Sha256::new();
-            hasher.update(self);
-            hasher.finalize().to_vec()
-        }
-    }
-
     #[test]
     fn merkle_proof_verification() {
         let data: Vec<Vec<u8>> = vec![
@@ -121,6 +125,7 @@ mod tests {
         ];
 
         let tree = MerkleTree::new(data.clone());
+
         let proof = tree.proof(2);
         let root = tree.root();
 
