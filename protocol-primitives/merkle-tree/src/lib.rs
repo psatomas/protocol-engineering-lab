@@ -8,7 +8,7 @@ pub trait Hashable {
     fn hash(&self) -> Hash;
 }
 
-/// SHA256 helper returning fixed-size hash
+/// SHA256 helper
 fn sha256(data: &[u8]) -> Hash {
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -17,21 +17,40 @@ fn sha256(data: &[u8]) -> Hash {
 
     let mut hash = [0u8; 32];
     hash.copy_from_slice(&result);
-
     hash
+}
+
+/// Domain-separated leaf hash: H(0x00 || data)
+fn hash_leaf(data: &[u8]) -> Hash {
+    let mut prefixed = Vec::with_capacity(1 + data.len());
+    prefixed.push(0x00);
+    prefixed.extend_from_slice(data);
+
+    sha256(&prefixed)
+}
+
+/// Domain-separated node hash: H(0x01 || left || right)
+fn hash_node(left: &Hash, right: &Hash) -> Hash {
+    let mut combined = [0u8; 65];
+
+    combined[0] = 0x01;
+    combined[1..33].copy_from_slice(left);
+    combined[33..].copy_from_slice(right);
+
+    sha256(&combined)
 }
 
 /// Implement Hashable for byte slices
 impl Hashable for &[u8] {
     fn hash(&self) -> Hash {
-        sha256(self)
+        hash_leaf(self)
     }
 }
 
 /// Implement Hashable for Vec<u8>
 impl Hashable for Vec<u8> {
     fn hash(&self) -> Hash {
-        sha256(self)
+        hash_leaf(self)
     }
 }
 
@@ -56,11 +75,7 @@ impl<T: Hashable> MerkleTree<T> {
 
             for pair in current.chunks(2) {
                 if pair.len() == 2 {
-                    let mut combined = [0u8; 64];
-                    combined[..32].copy_from_slice(&pair[0]);
-                    combined[32..].copy_from_slice(&pair[1]);
-
-                    next_layer.push(sha256(&combined));
+                    next_layer.push(hash_node(&pair[0], &pair[1]));
                 } else {
                     next_layer.push(pair[0]);
                 }
@@ -104,17 +119,12 @@ impl<T: Hashable> MerkleTree<T> {
         let mut hash_val = leaf.hash();
 
         for sibling in proof {
-            let mut combined = [0u8; 64];
-
-            if index % 2 == 0 {
-                combined[..32].copy_from_slice(&hash_val);
-                combined[32..].copy_from_slice(sibling);
+            hash_val = if index % 2 == 0 {
+                hash_node(&hash_val, sibling)
             } else {
-                combined[..32].copy_from_slice(sibling);
-                combined[32..].copy_from_slice(&hash_val);
-            }
+                hash_node(sibling, &hash_val)
+            };
 
-            hash_val = sha256(&combined);
             index /= 2;
         }
 
@@ -141,5 +151,13 @@ mod tests {
         let root = tree.root();
 
         assert!(MerkleTree::verify(&data[2], &proof, &root, 2));
+    }
+
+    #[test]
+    fn domain_separation_works() {
+        let leaf = hash_leaf(b"abc");
+        let node = hash_node(&leaf, &leaf);
+
+        assert_ne!(leaf, node);
     }
 }
