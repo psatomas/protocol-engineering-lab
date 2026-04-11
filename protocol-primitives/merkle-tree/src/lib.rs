@@ -1,41 +1,50 @@
 use sha2::{Digest, Sha256};
 
-/// Trait for types that can be hashed and used as MerkleTree leaves
+/// Fixed-size hash type
+pub type Hash = [u8; 32];
+
+/// Trait for types that can be hashed as Merkle leaves
 pub trait Hashable {
-    fn hash(&self) -> Vec<u8>;
+    fn hash(&self) -> Hash;
+}
+
+/// SHA256 helper returning fixed-size hash
+fn sha256(data: &[u8]) -> Hash {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+
+    let result = hasher.finalize();
+
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&result);
+
+    hash
 }
 
 /// Implement Hashable for byte slices
 impl Hashable for &[u8] {
-    fn hash(&self) -> Vec<u8> {
+    fn hash(&self) -> Hash {
         sha256(self)
     }
 }
 
 /// Implement Hashable for Vec<u8>
 impl Hashable for Vec<u8> {
-    fn hash(&self) -> Vec<u8> {
+    fn hash(&self) -> Hash {
         sha256(self)
     }
-}
-
-/// Utility SHA256 function
-fn sha256(data: &[u8]) -> Vec<u8> {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hasher.finalize().to_vec()
 }
 
 /// Generic MerkleTree struct
 pub struct MerkleTree<T: Hashable> {
     pub leaves: Vec<T>,
-    layers: Vec<Vec<Vec<u8>>>,
+    layers: Vec<Vec<Hash>>,
 }
 
 impl<T: Hashable> MerkleTree<T> {
-    /// Create a new MerkleTree
+    /// Create a new Merkle tree
     pub fn new(leaves: Vec<T>) -> Self {
-        let hashed_leaves: Vec<Vec<u8>> = leaves.iter().map(|l| l.hash()).collect();
+        let hashed_leaves: Vec<Hash> = leaves.iter().map(|l| l.hash()).collect();
 
         let mut layers = Vec::new();
         layers.push(hashed_leaves.clone());
@@ -47,11 +56,13 @@ impl<T: Hashable> MerkleTree<T> {
 
             for pair in current.chunks(2) {
                 if pair.len() == 2 {
-                    let mut combined = pair[0].clone();
-                    combined.extend(&pair[1]);
+                    let mut combined = [0u8; 64];
+                    combined[..32].copy_from_slice(&pair[0]);
+                    combined[32..].copy_from_slice(&pair[1]);
+
                     next_layer.push(sha256(&combined));
                 } else {
-                    next_layer.push(pair[0].clone());
+                    next_layer.push(pair[0]);
                 }
             }
 
@@ -63,12 +74,12 @@ impl<T: Hashable> MerkleTree<T> {
     }
 
     /// Return Merkle root
-    pub fn root(&self) -> Vec<u8> {
-        self.layers.last().unwrap()[0].clone()
+    pub fn root(&self) -> Hash {
+        self.layers.last().unwrap()[0]
     }
 
     /// Generate proof for a leaf index
-    pub fn proof(&self, mut index: usize) -> Vec<Vec<u8>> {
+    pub fn proof(&self, mut index: usize) -> Vec<Hash> {
         let mut proof = Vec::new();
 
         for layer in &self.layers {
@@ -79,7 +90,7 @@ impl<T: Hashable> MerkleTree<T> {
             let sibling = if index % 2 == 0 { index + 1 } else { index - 1 };
 
             if sibling < layer.len() {
-                proof.push(layer[sibling].clone());
+                proof.push(layer[sibling]);
             }
 
             index /= 2;
@@ -89,25 +100,25 @@ impl<T: Hashable> MerkleTree<T> {
     }
 
     /// Verify proof
-    pub fn verify(leaf: &T, proof: &[Vec<u8>], root: &[u8], mut index: usize) -> bool {
+    pub fn verify(leaf: &T, proof: &[Hash], root: &Hash, mut index: usize) -> bool {
         let mut hash_val = leaf.hash();
 
         for sibling in proof {
-            let combined = if index % 2 == 0 {
-                let mut c = hash_val.clone();
-                c.extend(sibling);
-                c
+            let mut combined = [0u8; 64];
+
+            if index % 2 == 0 {
+                combined[..32].copy_from_slice(&hash_val);
+                combined[32..].copy_from_slice(sibling);
             } else {
-                let mut c = sibling.clone();
-                c.extend(&hash_val);
-                c
-            };
+                combined[..32].copy_from_slice(sibling);
+                combined[32..].copy_from_slice(&hash_val);
+            }
 
             hash_val = sha256(&combined);
             index /= 2;
         }
 
-        hash_val == root
+        &hash_val == root
     }
 }
 
