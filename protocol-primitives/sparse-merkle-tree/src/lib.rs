@@ -23,6 +23,19 @@ pub fn hash_node(left: &Hash, right: &Hash) -> Hash {
     hasher.finalize().into()
 }
 
+pub fn build_zero_hashes() -> [Hash; TREE_DEPTH + 1] {
+    let mut hashes = [[0u8; 32]; TREE_DEPTH + 1];
+
+    // base: empty leaf
+    hashes[0] = hash_node(&[0u8; 32], &[0u8; 32]); // TEMP (we'll fix properly next step)
+
+    for i in 1..=TREE_DEPTH {
+        hashes[i] = hash_node(&hashes[i - 1], &hashes[i - 1]);
+    }
+
+    hashes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,5 +88,16 @@ mod tests {
         let h2 = hash_node(&b, &a);
 
         assert_ne!(h1, h2);
+    }
+    #[test]
+    fn test_zero_hashes_structure() {
+        let z = build_zero_hashes();
+
+        // deterministic
+        let z2 = build_zero_hashes();
+        assert_eq!(z, z2);
+
+        // hierarchy evolves
+        assert_ne!(z[0], z[1]);
     }
 }
