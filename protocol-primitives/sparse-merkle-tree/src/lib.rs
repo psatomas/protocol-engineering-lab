@@ -8,6 +8,20 @@ pub fn get_bit(key: &[u8; 32], i: usize) -> u8 {
     (key[byte_index] >> bit_index) & 1
 }
 
+const LEAF_PREFIX: u8 = 0x00;
+
+pub fn hash_leaf(value: &[u8; 32]) -> Hash {
+    let mut hasher = Sha256::new();
+    hasher.update([LEAF_PREFIX]); // domain separation
+    hasher.update(value);
+
+    hasher.finalize().into()
+}
+
+pub fn empty_leaf() -> Hash {
+    hash_leaf(&[0u8; 32])
+}
+
 use sha2::{Digest, Sha256};
 
 pub type Hash = [u8; 32];
@@ -26,8 +40,7 @@ pub fn hash_node(left: &Hash, right: &Hash) -> Hash {
 pub fn build_zero_hashes() -> [Hash; TREE_DEPTH + 1] {
     let mut hashes = [[0u8; 32]; TREE_DEPTH + 1];
 
-    // base: empty leaf
-    hashes[0] = hash_node(&[0u8; 32], &[0u8; 32]); // TEMP (we'll fix properly next step)
+    hashes[0] = empty_leaf();
 
     for i in 1..=TREE_DEPTH {
         hashes[i] = hash_node(&hashes[i - 1], &hashes[i - 1]);
@@ -99,5 +112,11 @@ mod tests {
 
         // hierarchy evolves
         assert_ne!(z[0], z[1]);
+    }
+    #[test]
+    fn test_zero_hash_base_is_leaf() {
+        let z = build_zero_hashes();
+
+        assert_eq!(z[0], empty_leaf());
     }
 }
