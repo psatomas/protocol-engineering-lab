@@ -49,6 +49,26 @@ pub fn build_zero_hashes() -> [Hash; TREE_DEPTH + 1] {
     hashes
 }
 
+use std::collections::HashMap;
+
+pub struct SparseMerkleTree {
+    pub nodes: HashMap<(usize, Hash), Hash>,
+    pub root: Hash,
+    pub zero_hashes: [Hash; TREE_DEPTH + 1],
+}
+
+impl SparseMerkleTree {
+    pub fn new() -> Self {
+        let zero_hashes = build_zero_hashes();
+
+        Self {
+            nodes: HashMap::new(),
+            root: zero_hashes[TREE_DEPTH],
+            zero_hashes,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,5 +138,11 @@ mod tests {
         let z = build_zero_hashes();
 
         assert_eq!(z[0], empty_leaf());
+    }
+    #[test]
+    fn test_new_tree_root_is_zero() {
+        let tree = SparseMerkleTree::new();
+
+        assert_eq!(tree.root, tree.zero_hashes[TREE_DEPTH]);
     }
 }
