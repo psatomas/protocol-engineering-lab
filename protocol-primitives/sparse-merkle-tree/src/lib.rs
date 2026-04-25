@@ -1,4 +1,9 @@
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+
 pub const TREE_DEPTH: usize = 256;
+
+pub type Hash = [u8; 32];
 
 /// Returns the bit at position `i` (0 = MSB, 255 = LSB)
 pub fn get_bit(key: &[u8; 32], i: usize) -> u8 {
@@ -21,10 +26,6 @@ pub fn hash_leaf(value: &[u8; 32]) -> Hash {
 pub fn empty_leaf() -> Hash {
     hash_leaf(&[0u8; 32])
 }
-
-use sha2::{Digest, Sha256};
-
-pub type Hash = [u8; 32];
 
 const NODE_PREFIX: u8 = 0x01;
 
@@ -49,10 +50,9 @@ pub fn build_zero_hashes() -> [Hash; TREE_DEPTH + 1] {
     hashes
 }
 
-use std::collections::HashMap;
-
 pub struct SparseMerkleTree {
-    pub nodes: HashMap<(usize, Hash), Hash>,
+    // FIXED: use (level, key) instead of (level, hash)
+    pub nodes: HashMap<(usize, [u8; 32]), Hash>,
     pub root: Hash,
     pub zero_hashes: [Hash; TREE_DEPTH + 1],
 }
@@ -66,6 +66,10 @@ impl SparseMerkleTree {
             root: zero_hashes[TREE_DEPTH],
             zero_hashes,
         }
+    }
+
+    pub fn update(&mut self, _key: Hash, _value: Hash) {
+        unimplemented!()
     }
 }
 
@@ -91,7 +95,6 @@ mod tests {
     fn test_get_bit_middle() {
         let mut key = [0u8; 32];
 
-        // set bit 130 (arbitrary middle check)
         let i = 130;
         let byte_index = i / 8;
         let bit_index = 7 - (i % 8);
@@ -122,23 +125,24 @@ mod tests {
 
         assert_ne!(h1, h2);
     }
+
     #[test]
     fn test_zero_hashes_structure() {
         let z = build_zero_hashes();
 
-        // deterministic
         let z2 = build_zero_hashes();
         assert_eq!(z, z2);
 
-        // hierarchy evolves
         assert_ne!(z[0], z[1]);
     }
+
     #[test]
     fn test_zero_hash_base_is_leaf() {
         let z = build_zero_hashes();
 
         assert_eq!(z[0], empty_leaf());
     }
+
     #[test]
     fn test_new_tree_root_is_zero() {
         let tree = SparseMerkleTree::new();
