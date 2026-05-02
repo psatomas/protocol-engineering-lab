@@ -51,7 +51,6 @@ pub fn build_zero_hashes() -> [Hash; TREE_DEPTH + 1] {
 }
 
 pub struct SparseMerkleTree {
-    // FIXED: use (level, key) instead of (level, hash)
     pub nodes: HashMap<(usize, [u8; 32]), Hash>,
     pub root: Hash,
     pub zero_hashes: [Hash; TREE_DEPTH + 1],
@@ -68,8 +67,11 @@ impl SparseMerkleTree {
         }
     }
 
-    pub fn update(&mut self, _key: Hash, _value: Hash) {
-        unimplemented!()
+    pub fn update(&mut self, key: Hash, value: Hash) {
+        let leaf = hash_leaf(&value);
+
+        // level 0 = leaf
+        self.nodes.insert((0, key), leaf);
     }
 }
 
@@ -81,14 +83,11 @@ mod tests {
     fn test_get_bit_msb_lsb() {
         let mut key = [0u8; 32];
 
-        // MSB of byte 0
-        key[0] = 0b1000_0000;
+        key[0] = 0b1000_0000; // MSB
+        key[31] = 0b0000_0001; // LSB
 
-        // LSB of full 256-bit array
-        key[31] = 0b0000_0001;
-
-        assert_eq!(get_bit(&key, 0), 1); // MSB
-        assert_eq!(get_bit(&key, 255), 1); // LSB
+        assert_eq!(get_bit(&key, 0), 1);
+        assert_eq!(get_bit(&key, 255), 1);
     }
 
     #[test]
@@ -149,4 +148,18 @@ mod tests {
 
         assert_eq!(tree.root, tree.zero_hashes[TREE_DEPTH]);
     }
+
+    #[test]
+    fn test_insert_leaf() {
+        let mut tree = SparseMerkleTree::new();
+
+        let key = [1u8; 32];
+        let value = [2u8; 32];
+
+        tree.update(key, value);
+
+        let stored = tree.nodes.get(&(0, key)).unwrap();
+        assert_eq!(*stored, hash_leaf(&value));
+    }
 }
+
