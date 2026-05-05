@@ -68,10 +68,36 @@ impl SparseMerkleTree {
     }
 
     pub fn update(&mut self, key: Hash, value: Hash) {
+        // Step 8 — leaf
         let leaf = hash_leaf(&value);
-
-        // level 0 = leaf
         self.nodes.insert((0, key), leaf);
+
+        // Step 9 — level 1 parent
+        let bit = get_bit(&key, 0);
+
+        let sibling_key = {
+            let mut k = key;
+            let byte = 0 / 8;
+            let bit_index = 7 - (0 % 8);
+            k[byte] ^= 1 << bit_index; // flip bit 0
+            k
+        };
+
+        let sibling = self
+            .nodes
+            .get(&(0, sibling_key))
+            .copied()
+            .unwrap_or(self.zero_hashes[0]);
+
+        let (left, right) = if bit == 0 {
+            (leaf, sibling)
+        } else {
+            (sibling, leaf)
+        };
+
+        let parent = hash_node(&left, &right);
+
+        self.nodes.insert((1, key), parent);
     }
 }
 
@@ -160,6 +186,22 @@ mod tests {
 
         let stored = tree.nodes.get(&(0, key)).unwrap();
         assert_eq!(*stored, hash_leaf(&value));
+    }
+    #[test]
+    fn test_parent_level_1() {
+        let mut tree = SparseMerkleTree::new();
+
+        let key = [0u8; 32]; // ensures predictable bit = 0
+        let value = [5u8; 32];
+
+        tree.update(key, value);
+
+        let leaf = hash_leaf(&value);
+        let sibling = tree.zero_hashes[0];
+        let expected = hash_node(&leaf, &sibling);
+
+        let stored = tree.nodes.get(&(1, key)).unwrap();
+        assert_eq!(*stored, expected);
     }
 }
 
