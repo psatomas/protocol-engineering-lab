@@ -68,36 +68,46 @@ impl SparseMerkleTree {
     }
 
     pub fn update(&mut self, key: Hash, value: Hash) {
-        // Step 8 — leaf
-        let leaf = hash_leaf(&value);
-        self.nodes.insert((0, key), leaf);
+        // level 0
+        let mut current = hash_leaf(&value);
 
-        // Step 9 — level 1 parent
-        let bit = get_bit(&key, 0);
+        self.nodes.insert((0, key), current);
 
-        let sibling_key = {
-            let mut k = key;
-            let byte = 0 / 8;
-            let bit_index = 7 - (0 % 8);
-            k[byte] ^= 1 << bit_index; // flip bit 0
-            k
-        };
+        for level in 0..TREE_DEPTH {
+            let bit = get_bit(&key, level);
 
-        let sibling = self
-            .nodes
-            .get(&(0, sibling_key))
-            .copied()
-            .unwrap_or(self.zero_hashes[0]);
+            // sibling position
+            let sibling_key = {
+                let mut k = key;
 
-        let (left, right) = if bit == 0 {
-            (leaf, sibling)
-        } else {
-            (sibling, leaf)
-        };
+                let byte_index = level / 8;
+                let bit_index = 7 - (level % 8);
 
-        let parent = hash_node(&left, &right);
+                k[byte_index] ^= 1 << bit_index;
 
-        self.nodes.insert((1, key), parent);
+                k
+            };
+
+            let sibling = self
+                .nodes
+                .get(&(level, sibling_key))
+                .copied()
+                .unwrap_or(self.zero_hashes[level]);
+
+            let (left, right) = if bit == 0 {
+                (current, sibling)
+            } else {
+                (sibling, current)
+            };
+
+            let parent = hash_node(&left, &right);
+
+            self.nodes.insert((level + 1, key), parent);
+
+            current = parent;
+        }
+
+        self.root = current;
     }
 }
 
@@ -202,6 +212,29 @@ mod tests {
 
         let stored = tree.nodes.get(&(1, key)).unwrap();
         assert_eq!(*stored, expected);
+    }
+    #[test]
+    fn test_update_changes_root() {
+        let mut tree = SparseMerkleTree::new();
+
+        let initial_root = tree.root;
+
+        tree.update([1u8; 32], [2u8; 32]);
+
+        assert_ne!(tree.root, initial_root);
+    }
+    #[test]
+    fn test_same_update_same_root() {
+        let mut tree1 = SparseMerkleTree::new();
+        let mut tree2 = SparseMerkleTree::new();
+
+        let key = [7u8; 32];
+        let value = [9u8; 32];
+
+        tree1.update(key, value);
+        tree2.update(key, value);
+
+        assert_eq!(tree1.root, tree2.root);
     }
 }
 
