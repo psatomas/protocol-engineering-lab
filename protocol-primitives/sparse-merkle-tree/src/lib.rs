@@ -13,6 +13,24 @@ pub fn get_bit(key: &[u8; 32], i: usize) -> u8 {
     (key[byte_index] >> bit_index) & 1
 }
 
+pub fn prefix(key: &Hash, depth: usize) -> Hash {
+    let mut out = [0u8; 32];
+
+    let full_bytes = depth / 8;
+    let remaining_bits = depth % 8;
+
+    // copy full bytes
+    out[..full_bytes].copy_from_slice(&key[..full_bytes]);
+
+    // copy partial byte
+    if remaining_bits > 0 {
+        let mask = 0xFF << (8 - remaining_bits);
+        out[full_bytes] = key[full_bytes] & mask;
+    }
+
+    out
+}
+
 const LEAF_PREFIX: u8 = 0x00;
 
 pub fn hash_leaf(value: &[u8; 32]) -> Hash {
@@ -71,26 +89,29 @@ impl SparseMerkleTree {
         // level 0
         let mut current = hash_leaf(&value);
 
-        self.nodes.insert((0, key), current);
+        self.nodes.insert((0, prefix(&key, TREE_DEPTH)), current);
 
         for level in 0..TREE_DEPTH {
-            let bit = get_bit(&key, level);
+            let bit = get_bit(&key, TREE_DEPTH - level - 1);
 
-            // sibling position
-            let sibling_key = {
-                let mut k = key;
+            let current_prefix = prefix(&key, TREE_DEPTH - level);
 
-                let byte_index = level / 8;
-                let bit_index = 7 - (level % 8);
+            let sibling_prefix = {
+                let mut p = current_prefix;
 
-                k[byte_index] ^= 1 << bit_index;
+                let bit_pos = TREE_DEPTH - level - 1;
 
-                k
+                let byte_index = bit_pos / 8;
+                let bit_index = 7 - (bit_pos % 8);
+
+                p[byte_index] ^= 1 << bit_index;
+
+                p
             };
 
             let sibling = self
                 .nodes
-                .get(&(level, sibling_key))
+                .get(&(level, sibling_prefix))
                 .copied()
                 .unwrap_or(self.zero_hashes[level]);
 
@@ -102,7 +123,8 @@ impl SparseMerkleTree {
 
             let parent = hash_node(&left, &right);
 
-            self.nodes.insert((level + 1, key), parent);
+            self.nodes
+                .insert((level + 1, prefix(&key, TREE_DEPTH - (level + 1))), parent);
 
             current = parent;
         }
@@ -197,6 +219,7 @@ mod tests {
         let stored = tree.nodes.get(&(0, key)).unwrap();
         assert_eq!(*stored, hash_leaf(&value));
     }
+
     #[test]
     fn test_parent_level_1() {
         let mut tree = SparseMerkleTree::new();
@@ -213,6 +236,7 @@ mod tests {
         let stored = tree.nodes.get(&(1, key)).unwrap();
         assert_eq!(*stored, expected);
     }
+
     #[test]
     fn test_update_changes_root() {
         let mut tree = SparseMerkleTree::new();
@@ -223,6 +247,7 @@ mod tests {
 
         assert_ne!(tree.root, initial_root);
     }
+
     #[test]
     fn test_same_update_same_root() {
         let mut tree1 = SparseMerkleTree::new();
@@ -236,5 +261,63 @@ mod tests {
 
         assert_eq!(tree1.root, tree2.root);
     }
-}
 
+    #[test]
+    fn test_two_leaves_same_order_same_root() {
+        let mut tree1 = SparseMerkleTree::new();
+        let mut tree2 = SparseMerkleTree::new();
+
+        tree1.update([1u8; 32], [10u8; 32]);
+        tree1.update([2u8; 32], [20u8; 32]);
+
+        tree2.update([1u8; 32], [10u8; 32]);
+        tree2.update([2u8; 32], [20u8; 32]);
+
+        assert_eq!(tree1.root, tree2.root);
+    }
+
+    #[test]
+    fn test_insertion_order_independent() {
+        let mut tree1 = SparseMerkleTree::new();
+        let mut tree2 = SparseMerkleTree::new();
+
+        tree1.update([1u8; 32], [10u8; 32]);
+        tree1.update([2u8; 32], [20u8; 32]);
+
+        tree2.update([2u8; 32], [20u8; 32]);
+        tree2.update([1u8; 32], [10u8; 32]);
+
+        assert_eq!(tree1.root, tree2.root);
+    }
+
+    #[test]
+    fn test_overwrite_leaf_changes_root() {
+        let mut tree = SparseMerkleTree::new();
+
+        let key = [42u8; 32];
+
+        tree.update(key, [1u8; 32]);
+        let root1 = tree.root;
+
+        tree.update(key, [2u8; 32]);
+        let root2 = tree.root;
+
+        assert_ne!(root1, root2);
+    }
+
+    #[test]
+    fn test_prefix_depth_0() {
+        let key = [255u8; 32];
+
+        assert_eq!(prefix(&key, 0), [0u8; 32]);
+    }
+
+    #[test]
+    fn test_prefix_partial_bits() {
+        let key = [0b10110000u8; 32];
+
+        let p = prefix(&key, 3);
+
+        assert_eq!(p[0], 0b10100000);
+    }
+}
