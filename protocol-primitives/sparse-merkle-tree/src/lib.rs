@@ -14,19 +14,34 @@ pub fn get_bit(key: &[u8; 32], i: usize) -> u8 {
 }
 
 pub fn prefix(key: &Hash, depth: usize) -> Hash {
+    assert!(depth <= 256);
+
     let mut out = [0u8; 32];
 
     let full_bytes = depth / 8;
     let remaining_bits = depth % 8;
 
-    // copy full bytes
+    // Preserve fully covered bytes
     out[..full_bytes].copy_from_slice(&key[..full_bytes]);
 
-    // copy partial byte
+    // Preserve partial byte bits (MSB-first)
     if remaining_bits > 0 {
         let mask = 0xFF << (8 - remaining_bits);
         out[full_bytes] = key[full_bytes] & mask;
     }
+
+    out
+}
+
+pub fn sibling_prefix(prefix: &Hash, depth: usize) -> Hash {
+    assert!(depth < 256);
+
+    let mut out = *prefix;
+
+    let byte = depth / 8;
+    let bit = 7 - (depth % 8);
+
+    out[byte] ^= 1 << bit;
 
     out
 }
