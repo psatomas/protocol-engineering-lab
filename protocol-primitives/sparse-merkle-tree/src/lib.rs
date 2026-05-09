@@ -5,6 +5,12 @@ pub const TREE_DEPTH: usize = 256;
 
 pub type Hash = [u8; 32];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NodeKey {
+    pub depth: usize,
+    pub prefix: Hash,
+}
+
 /// Returns the bit at position `i` (0 = MSB, 255 = LSB)
 pub fn get_bit(key: &[u8; 32], i: usize) -> u8 {
     let byte_index = i / 8;
@@ -84,7 +90,7 @@ pub fn build_zero_hashes() -> [Hash; TREE_DEPTH + 1] {
 }
 
 pub struct SparseMerkleTree {
-    pub nodes: HashMap<(usize, [u8; 32]), Hash>,
+    pub nodes: HashMap<NodeKey, Hash>,
     pub root: Hash,
     pub zero_hashes: [Hash; TREE_DEPTH + 1],
 }
@@ -104,7 +110,13 @@ impl SparseMerkleTree {
         // level 0
         let mut current = hash_leaf(&value);
 
-        self.nodes.insert((0, prefix(&key, TREE_DEPTH)), current);
+        self.nodes.insert(
+            NodeKey {
+                depth: 0,
+                prefix: prefix(&key, TREE_DEPTH),
+            },
+            current,
+        );
 
         for level in 0..TREE_DEPTH {
             let bit = get_bit(&key, TREE_DEPTH - level - 1);
@@ -126,7 +138,10 @@ impl SparseMerkleTree {
 
             let sibling = self
                 .nodes
-                .get(&(level, sibling_prefix))
+                .get(&NodeKey {
+                    depth: level,
+                    prefix: sibling_prefix,
+                })
                 .copied()
                 .unwrap_or(self.zero_hashes[level]);
 
@@ -138,9 +153,13 @@ impl SparseMerkleTree {
 
             let parent = hash_node(&left, &right);
 
-            self.nodes
-                .insert((level + 1, prefix(&key, TREE_DEPTH - (level + 1))), parent);
-
+            self.nodes.insert(
+                NodeKey {
+                    depth: level + 1,
+                    prefix: prefix(&key, TREE_DEPTH - (level + 1)),
+                },
+                parent,
+            );
             current = parent;
         }
 
