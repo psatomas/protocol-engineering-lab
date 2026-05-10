@@ -250,7 +250,13 @@ mod tests {
 
         tree.update(key, value);
 
-        let stored = tree.nodes.get(&(0, key)).unwrap();
+        let stored = tree
+            .nodes
+            .get(&NodeKey {
+                depth: 0,
+                prefix: key,
+            })
+            .unwrap();
         assert_eq!(*stored, hash_leaf(&value));
     }
 
@@ -267,7 +273,13 @@ mod tests {
         let sibling = tree.zero_hashes[0];
         let expected = hash_node(&leaf, &sibling);
 
-        let stored = tree.nodes.get(&(1, key)).unwrap();
+        let stored = tree
+            .nodes
+            .get(&NodeKey {
+                depth: 1,
+                prefix: key,
+            })
+            .unwrap();
         assert_eq!(*stored, expected);
     }
 
@@ -353,5 +365,27 @@ mod tests {
         let p = prefix(&key, 3);
 
         assert_eq!(p[0], 0b10100000);
+    }
+    #[test]
+    fn insertion_order_invariant() {
+        let entries = vec![
+            ([1u8; 32], [10u8; 32]),
+            ([2u8; 32], [20u8; 32]),
+            ([3u8; 32], [30u8; 32]),
+        ];
+
+        let mut tree_a = SparseMerkleTree::new();
+
+        for (k, v) in &entries {
+            tree_a.update(*k, *v);
+        }
+
+        let mut tree_b = SparseMerkleTree::new();
+
+        for (k, v) in entries.iter().rev() {
+            tree_b.update(*k, *v);
+        }
+
+        assert_eq!(tree_a.root, tree_b.root);
     }
 }
