@@ -388,4 +388,19 @@ mod tests {
 
         assert_eq!(tree_a.root, tree_b.root);
     }
+    #[test]
+    fn overwrite_is_deterministic() {
+        let key = [1u8; 32];
+
+        let mut tree_a = SparseMerkleTree::new();
+
+        tree_a.update(key, [10u8; 32]);
+        tree_a.update(key, [20u8; 32]);
+
+        let mut tree_b = SparseMerkleTree::new();
+
+        tree_b.update(key, [20u8; 32]);
+
+        assert_eq!(tree_a.root, tree_b.root);
+    }
 }
